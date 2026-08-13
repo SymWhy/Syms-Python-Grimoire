@@ -3,15 +3,17 @@ import configparser
 import logging
 from tkinter import filedialog
 
+BASE_DIR = Path(__file__).resolve().parent
+DEF_SBSRENDER = Path('C:/Program Files/Adobe/Adobe Substance 3D Designer/sbsrender.exe')
+DEF_TEXCONV = BASE_DIR / 'util' / 'texconv.exe'
+
 logger = logging.getLogger()
 cfgparser = configparser.ConfigParser()
-ini_file = Path('configs.ini')
+ini_file = BASE_DIR / 'config.ini'
 
-# initialize variables
-sPathSBSRender: str | None = None
-sPathTexconv: str | None = None
-
-DEF_TEXCONV = Path('util') / 'texconv.exe'
+# initialize variables to default paths
+sPathSBSRender = str(DEF_SBSRENDER)
+sPathTexconv = str(DEF_TEXCONV)
 
 
 def setup_config(cfgparser=cfgparser, logger=logger):
@@ -20,37 +22,57 @@ def setup_config(cfgparser=cfgparser, logger=logger):
     global sPathSBSRender
     global sPathTexconv
 
-
     # try to get paths from config
     # if this fails, add find the paths with filedialog and add them to the config.
     try:
-        cfgparser.read('configs.ini')
+        # read the ini
+        cfgparser.read(ini_file, encoding="utf-8")
+
+        # get the SBSRender path entry
         sPathSBSRender = cfgparser.get('PATHS', 'sPathSBSRender')
-    except (FileNotFoundError, configparser.NoSectionError, configparser.NoOptionError):
-        while True:
-            new_dir = filedialog.askopenfilename(filetypes=[("Executables", "*.exe")], title="Please find sbsrender.exe")
-            if not new_dir: raise SystemExit("[ERROR] Operation canceled by user")
-            if new_dir.endswith("sbsrender.exe"):
-                break
-            else:
-                logger.warning('[WARNING] Incorrect program selected. Please select "sbsrender.exe"')
+
+        # throw an error if the existing entry is not a file
+        if not sPathSBSRender or not Path(sPathSBSRender).is_file():
+            raise FileNotFoundError('[ERROR] Please select the SBSRender executable.')
         
-        sPathSBSRender = new_dir
+    except (FileNotFoundError, configparser.NoSectionError, configparser.NoOptionError):
+
+        if not DEF_SBSRENDER.is_file():
+            
+            while True:
+
+                # user finds the SBSRender exe
+                new_dir = filedialog.askopenfilename(filetypes=[("Executables", "*.exe")], title="Please find sbsrender.exe")
+                if not new_dir: raise SystemExit("[ERROR] Operation canceled by user")
+                if new_dir.lower().endswith("sbsrender.exe"):
+                    break
+                else:
+                    logger.warning('[WARNING] Incorrect program selected. Please select "sbsrender.exe"')
+            
+            sPathSBSRender = new_dir
+        else:
+            sPathSBSRender = str(DEF_SBSRENDER)
 
     try:
         sPathTexconv = cfgparser.get('PATHS', 'sPathTexconv')
-    except configparser.NoSectionError:
+
+        # throw an error if the existing entry is not a file
+        if not sPathTexconv or not Path(sPathTexconv).is_file():
+            raise FileNotFoundError('[ERROR] Please select the Texconv executable.')
+    
+    except (FileNotFoundError, configparser.NoSectionError, configparser.NoOptionError):
         if not DEF_TEXCONV.is_file():
             while True:
+                # user finds the Texconv exe
                 new_dir = filedialog.askopenfilename(filetypes=[("Executables", "*.exe")], title="Please find texconv.exe")
                 if not new_dir: raise SystemExit("[ERROR] Operation canceled by user")
-                if new_dir.endswith("texconv.exe"):
+                if new_dir.lower().endswith("texconv.exe"):
                     break
                 else:
                     logger.warning('[WARNING] Incorrect program selected. Please select "texconv.exe"')
+            sPathTexconv = new_dir
         else:
-            new_dir = DEF_TEXCONV.resolve()
-        sPathTexconv = new_dir
+            sPathTexconv = str(DEF_TEXCONV)
 
     # sync with ini file
     sync_config()
@@ -76,9 +98,13 @@ def load_config(cfgparser=cfgparser, ini_file=ini_file):
     
     # load values from ini file
     try:
-        sPathSBSRender = cfgparser.get("PATHS", sPathSBSRender)
-        sPathTexconv = cfgparser.get("PATHS", sPathTexconv)
-    except (configparser.NoSectionError, configparser.NoOptionError): 
+        cfgparser.read(ini_file, encoding="utf-8")
+        sPathSBSRender = cfgparser.get("PATHS", 'sPathSBSRender')
+        sPathTexconv = cfgparser.get("PATHS", 'sPathTexconv')
+
+        if not Path(sPathSBSRender).is_file() or not Path(sPathTexconv).is_file():
+            raise FileNotFoundError
+    except (FileNotFoundError, configparser.NoSectionError, configparser.NoOptionError): 
         logger.warning("[WARNING] Failed to load config. Rebuilding...")
         return setup_config()
 
